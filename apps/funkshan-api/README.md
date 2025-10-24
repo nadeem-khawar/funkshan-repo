@@ -48,16 +48,19 @@ pnpm start
 ## API Documentation
 
 Once the server is running, visit:
+
 - **Swagger UI**: http://localhost:3001/docs
 - **OpenAPI JSON**: http://localhost:3001/docs/json
 
 ## Endpoints
 
 ### Health Checks
+
 - `GET /health` - Basic health check
 - `GET /health/ready` - Readiness check
 
 ### API
+
 - `GET /api/v1` - API information
 - `POST /api/v1/echo` - Echo endpoint for testing
 

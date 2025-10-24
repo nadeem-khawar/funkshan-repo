@@ -15,16 +15,28 @@ A modern monorepo workspace powered by pnpm.
    pnpm install
    ```
 
-2. Start development:
+2. Start development servers:
+
    ```bash
+   # Start both web and API concurrently
    pnpm dev
+
+   # Or start them individually
+   pnpm dev:web    # Next.js at http://localhost:3000
+   pnpm dev:api    # Fastify API at http://localhost:3001
    ```
+
+3. Visit the applications:
+   - **Web App**: http://localhost:3000
+   - **API Docs**: http://localhost:3001/docs
+   - **API Health**: http://localhost:3001/health
 
 ## Workspace Structure
 
 ```
 ├── apps/
-│   └── funkshan-web/         # Next.js web application
+│   ├── funkshan-web/         # Next.js web application (http://localhost:3000)
+│   └── funkshan-api/         # Fastify API server (http://localhost:3001)
 ├── packages/                 # Shared packages
 ├── package.json              # Root package.json (workspace configuration)
 ├── pnpm-workspace.yaml       # pnpm workspace configuration
@@ -33,8 +45,27 @@ A modern monorepo workspace powered by pnpm.
 
 ## Available Scripts
 
-- `pnpm dev` - Start development servers for all apps
+### Development
+
+- `pnpm dev` - Start both web and API servers concurrently
+- `pnpm dev:web` - Start only the Next.js web app (port 3000)
+- `pnpm dev:api` - Start only the Fastify API server (port 3001)
+- `pnpm dev:all` - Start all apps individually (alternative to concurrent)
+
+### Production
+
+- `pnpm start` - Start both web and API in production mode
+- `pnpm start:web` - Start only the web app in production
+- `pnpm start:api` - Start only the API server in production
+
+### Building
+
 - `pnpm build` - Build all apps and packages
+- `pnpm build:web` - Build only the web application
+- `pnpm build:api` - Build only the API server
+
+### Code Quality
+
 - `pnpm lint` - Lint all packages
 - `pnpm lint:fix` - Fix linting issues
 - `pnpm format` - Format all files with Prettier

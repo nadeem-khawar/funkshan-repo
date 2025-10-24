@@ -5,7 +5,15 @@
   "private": true,
   "scripts": {
     "build": "pnpm -r build",
-    "dev": "pnpm -r dev",
+    "dev": "concurrently \"pnpm dev:web\" \"pnpm dev:api\" --names \"web,api\" --prefix-colors \"cyan,yellow\"",
+    "dev:all": "pnpm -r dev",
+    "dev:web": "pnpm --filter funkshan-web dev",
+    "dev:api": "pnpm --filter funkshan-api dev",
+    "start": "concurrently \"pnpm start:web\" \"pnpm start:api\" --names \"web,api\" --prefix-colors \"cyan,yellow\"",
+    "start:web": "pnpm --filter funkshan-web start",
+    "start:api": "pnpm --filter funkshan-api start",
+    "build:web": "pnpm --filter funkshan-web build",
+    "build:api": "pnpm --filter funkshan-api build",
     "lint": "pnpm -r lint",
     "lint:fix": "pnpm -r lint:fix",
     "format": "prettier --write .",
@@ -32,6 +40,7 @@
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.1",
-    "prettier": "^3.6.2"
+    "prettier": "^3.6.2",
+    "concurrently": "^9.1.0"
   }
 }
