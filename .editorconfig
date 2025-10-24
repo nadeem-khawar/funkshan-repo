@@ -1,0 +1,25 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.{js,jsx,ts,tsx,json,css,scss,sass,less,html,vue,svelte}]
+indent_size = 2
+
+[*.{md,markdown}]
+trim_trailing_whitespace = false
+
+[*.{yml,yaml}]
+indent_size = 2
+
+[{package.json,.travis.yml,.eslintrc.json}]
+indent_size = 2
+
+[Makefile]
+indent_style = tab
+indent_size = 4
