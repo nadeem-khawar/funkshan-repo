@@ -1,0 +1,69 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+build/
+dist/
+.next/
+out/
+coverage/
+
+# Lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Generated files
+*.min.js
+*.min.css
+
+# Logs
+*.log
+
+# Cache directories
+.cache/
+.parcel-cache/
+.turbo/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env*
+
+# Temporary files
+*.tmp
+*.temp
+
+# Changeset files
+.changeset/*.md
+
+# Documentation that should preserve formatting
+CHANGELOG.md
+LICENSE
+*.LICENSE
+
+# Config files that have specific formatting requirements
+.editorconfig
+.gitignore
+.gitattributes
+
+# Binary files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.svg
+*.woff
+*.woff2
+*.eot
+*.ttf
+*.otf
