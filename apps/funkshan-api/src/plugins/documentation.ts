@@ -65,6 +65,15 @@ async function documentationPlugin(
             deepLinking: true,
             defaultModelsExpandDepth: 1,
             defaultModelExpandDepth: 1,
+            // Disable "Try it out" for cross-origin requests in production
+            tryItOutEnabled: true,
+            requestInterceptor: (req: any) => {
+                // Ensure correct content type
+                if (!req.headers['Content-Type']) {
+                    req.headers['Content-Type'] = 'application/json';
+                }
+                return req;
+            },
         },
         uiHooks: {
             onRequest: function (request, reply, done) {
@@ -72,7 +81,7 @@ async function documentationPlugin(
                 done();
             },
         },
-        staticCSP: true,
+        staticCSP: false, // Disable CSP for Swagger UI static assets
         transformStaticCSP: (header: string) => header,
         transformSpecification: (swaggerObject, request, reply) => {
             return swaggerObject;

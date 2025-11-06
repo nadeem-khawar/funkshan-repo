@@ -1,5 +1,8 @@
 packages:
-  # All packages in sub-directories of packages/
-  - 'packages/*'
-  # All packages in the apps/ directory
-  - 'apps/*'
+  - packages/*
+  - apps/*
+
+ignoredBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - prisma

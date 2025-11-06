@@ -1,0 +1,95 @@
+// Prisma schema file
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  isActive  Boolean  @default(true)
+  isBlocked Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users     User[]
+
+  @@index([slug])
+  @@index([isActive])
+  @@index([isBlocked])
+  @@map("tenants")
+}
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  password          String
+  firstName         String
+  lastName          String
+  phoneNumber       String?
+  role              UserRole  @default(USER)
+  tenantId          String?
+  isActive          Boolean   @default(true)
+  isBlocked         Boolean   @default(false)
+  isEmailVerified   Boolean   @default(false)
+  emailVerifiedAt   DateTime?
+  emailVerificationToken String?
+  emailVerificationTokenExpiresAt DateTime?
+  passwordResetToken String?
+  passwordResetTokenExpiresAt DateTime?
+  passwordResetRequestedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  tenant      Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  devices     UserDevice[]
+
+  @@index([email])
+  @@index([tenantId])
+  @@index([role])
+  @@index([isBlocked])
+  @@index([isEmailVerified])
+  @@index([emailVerificationToken])
+  @@index([passwordResetToken])
+  @@index([createdAt(sort: Desc)])
+  @@map("users")
+}
+
+model UserDevice {
+  id          String   @id @default(cuid())
+  userId      String
+  deviceId    String
+  deviceType  String?  // e.g., "ios", "android", "web"
+  deviceName  String?  // e.g., "iPhone 13", "Chrome on Windows"
+  pushToken   String?  // FCM/APNs token for push notifications
+  isActive    Boolean  @default(true)
+  lastUsedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+  @@index([deviceId])
+  @@index([isActive])
+  @@map("user_devices")
+}
+// Concrete models will be added later based on application needs

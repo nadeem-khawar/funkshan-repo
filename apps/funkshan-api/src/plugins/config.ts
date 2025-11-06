@@ -32,13 +32,30 @@ async function configPlugin(
                 type: 'string',
                 default: 'your-secret-key-change-in-production',
             },
+            JWT_ACCESS_SECRET: {
+                type: 'string',
+                default: 'default-access-secret-change-in-production',
+            },
+            JWT_REFRESH_SECRET: {
+                type: 'string',
+                default: 'default-refresh-secret-change-in-production',
+            },
+            JWT_ACCESS_EXPIRES_IN: {
+                type: 'string',
+                default: '15m',
+            },
+            JWT_REFRESH_EXPIRES_IN: {
+                type: 'string',
+                default: '7d',
+            },
             CORS_ORIGINS: {
                 type: 'string',
                 default: 'http://localhost:3000',
             },
-            MONGODB_URL: {
+            DATABASE_URL: {
                 type: 'string',
-                default: 'mongodb://localhost:27017/funkshan',
+                default:
+                    'postgresql://postgres:password@localhost:5432/funkshan?schema=public',
             },
         },
     };

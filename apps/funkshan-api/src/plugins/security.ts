@@ -13,8 +13,19 @@ async function securityPlugin(
 ) {
     // Register helmet for security headers
     await fastify.register(helmet, {
-        contentSecurityPolicy: process.env.NODE_ENV === 'production',
-        crossOriginEmbedderPolicy: process.env.NODE_ENV === 'production',
+        contentSecurityPolicy:
+            process.env.NODE_ENV === 'production'
+                ? {
+                      directives: {
+                          defaultSrc: ["'self'"],
+                          styleSrc: ["'self'", "'unsafe-inline'"],
+                          scriptSrc: ["'self'", "'unsafe-inline'"],
+                          imgSrc: ["'self'", 'data:', 'https:'],
+                      },
+                  }
+                : false, // Disable CSP in development for Swagger UI compatibility
+        crossOriginEmbedderPolicy: false, // Disable for Swagger UI compatibility
+        global: true,
     });
 
     // Register CORS
@@ -22,9 +33,13 @@ async function securityPlugin(
         origin:
             process.env.NODE_ENV === 'development'
                 ? true
-                : ['http://localhost:3000'],
+                : ['http://localhost:3000', 'http://localhost:3001'],
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+        exposedHeaders: ['Content-Range', 'X-Content-Range'],
+        preflightContinue: false,
+        optionsSuccessStatus: 204,
     });
 
     // Register sensible plugin for common utilities

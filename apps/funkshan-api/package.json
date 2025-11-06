@@ -33,11 +33,14 @@
         "@fastify/swagger": "^9.5.2",
         "@fastify/swagger-ui": "^5.2.3",
         "@fastify/throttle": "^3.0.2",
+        "@funkshan/api-contracts": "workspace:*",
+        "@funkshan/database": "workspace:*",
+        "@funkshan/utils": "workspace:*",
         "fastify": "^5.6.1",
         "fastify-plugin": "^5.1.0",
-        "mongoose": "^8.19.2",
         "pino": "^10.1.0",
-        "pino-pretty": "^13.1.2"
+        "pino-pretty": "^13.1.2",
+        "zod-to-json-schema": "^3.24.6"
     },
     "devDependencies": {
         "@eslint/js": "^9.15.0",
