@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import authRoutes from './auth';
+import eventRoutes from './events';
 
 export default async function apiRoutes(
     fastify: FastifyInstance,
@@ -7,6 +8,9 @@ export default async function apiRoutes(
 ) {
     // Register auth routes
     await fastify.register(authRoutes, { prefix: '/auth' });
+
+    // Register event routes
+    await fastify.register(eventRoutes, { prefix: '/events' });
 
     // Example GET endpoint
     fastify.get('/', {

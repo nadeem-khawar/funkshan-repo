@@ -51,7 +51,11 @@ async function documentationPlugin(
             tags: [
                 { name: 'Health', description: 'Health check endpoints' },
                 { name: 'API', description: 'General API endpoints' },
-                { name: 'Auth', description: 'Authentication endpoints' },
+                {
+                    name: 'Authentication',
+                    description: 'Authentication endpoints',
+                },
+                { name: 'Events', description: 'Event management endpoints' },
             ],
         },
         hideUntagged: true,

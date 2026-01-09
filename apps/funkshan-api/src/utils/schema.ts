@@ -26,6 +26,7 @@ export function createFastifySchema(options: {
     querystring?: any;
     params?: any;
     response?: Record<number, any>;
+    security?: boolean; // Whether to require authentication
 }): FastifySchema {
     const schema: FastifySchema = {};
 
@@ -58,6 +59,11 @@ export function createFastifySchema(options: {
                 zodToFastifySchema(zodSchema);
         }
         schema.response = responseSchemas;
+    }
+
+    // Add security requirement for protected routes
+    if (options.security) {
+        schema.security = [{ bearerAuth: [] }];
     }
 
     return schema;

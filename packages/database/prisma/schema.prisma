@@ -4,11 +4,11 @@
 generator client {
   provider = "prisma-client-js"
   output   = "./generated/client"
+  engineType      = "client" // enable Prisma ORM without Rust
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum UserRole {
@@ -42,6 +42,7 @@ model User {
   firstName         String
   lastName          String
   phoneNumber       String?
+  timezone          String?   // IANA timezone (e.g., "America/New_York"), defaults to UTC if not set
   role              UserRole  @default(USER)
   tenantId          String?
   isActive          Boolean   @default(true)
@@ -57,8 +58,10 @@ model User {
   updatedAt         DateTime  @updatedAt
 
   // Relations
-  tenant      Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
-  devices     UserDevice[]
+  tenant              Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  devices             UserDevice[]
+  events              Event[]
+  eventCheckinAgents  EventCheckinAgent[]
 
   @@index([email])
   @@index([tenantId])
@@ -92,4 +95,126 @@ model UserDevice {
   @@index([isActive])
   @@map("user_devices")
 }
+
+enum InviteType {
+  GUEST_ONLY
+  PLUS_ONE
+  PLUS_TWO
+  PLUS_THREE
+  PLUS_FOUR
+  PLUS_FIVE
+  PLUS_SIX
+  FAMILY
+}
+
+enum InviteStatus {
+  PENDING       // Invite created but not yet sent
+  SENT          // Invite has been sent to guest
+  ACCEPTED      // Guest accepted the invitation
+  REJECTED      // Guest declined the invitation
+  MAYBE         // Guest response is tentative/maybe
+  CANCELLED     // Invite was cancelled by host
+}
+
+enum EntryMechanism {
+  QR_CODE
+  PIN_CODE
+  BOTH
+}
+
+model Event {
+  id                  String          @id @default(cuid())
+  userId              String          // Event creator
+  name                String
+  dateTime            DateTime
+  details             String?         @db.Text
+  eventImagePath      String?
+  backgroundImagePath String?
+
+  // Venue information (embedded for optimization)
+  venueAddress        String
+  venueLatitude       Float?
+  venueLongitude      Float?
+  venueTimezone       String          // IANA timezone of the venue (e.g., "America/New_York")
+  venueLocationImagePath String?
+  venueMapImagePath   String?
+
+  // Entry mechanism
+  entryMechanism      EntryMechanism?
+  qrCode              String?
+  pinCode             String?
+
+  // Optional fields
+  dressCode           String?
+  giftSuggestions     String?         @db.Text
+
+  // Event status
+  isDraft             Boolean         @default(true)   // Events start as drafts until published
+  publishedAt         DateTime?                         // When the event was published/sent
+  isActive            Boolean         @default(true)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  // Relations
+  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guests              Guest[]
+  checkinAgents       EventCheckinAgent[]
+
+  @@index([userId])
+  @@index([dateTime])
+  @@index([isActive])
+  @@index([isDraft])
+  @@index([createdAt(sort: Desc)])
+  @@map("events")
+}
+
+model Guest {
+  id                String        @id @default(cuid())
+  eventId           String
+  name              String
+  email             String?
+  phoneNumber       String?
+  inviteType        InviteType    @default(GUEST_ONLY)
+  inviteStatus      InviteStatus  @default(PENDING)
+  inviteSentAt      DateTime?     // When the invite was sent
+  inviteRespondedAt DateTime?     // When guest accepted/rejected/responded
+
+  // Secure RSVP tokens
+  rsvpToken         String?       @unique  // Unique secure token for RSVP links
+  rsvpTokenExpiresAt DateTime?              // Token expiration (independent of event time)
+
+  hasCheckedIn      Boolean       @default(false)
+  checkedInAt       DateTime?
+  notes             String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  // Relations
+  event             Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([email])
+  @@index([phoneNumber])
+  @@index([inviteStatus])
+  @@index([hasCheckedIn])
+  @@index([rsvpToken])
+  @@map("guests")
+}
+
+model EventCheckinAgent {
+  id          String   @id @default(cuid())
+  eventId     String
+  userId      String   // User with manager/admin role
+  assignedAt  DateTime @default(now())
+
+  // Relations
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+  @@map("event_checkin_agents")
+}
+
 // Concrete models will be added later based on application needs

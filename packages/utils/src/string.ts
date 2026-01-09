@@ -40,11 +40,13 @@ export function truncate(str: string, length: number, suffix = '...'): string {
 /**
  * Generate a random string
  * @param length - Length of the string
+ * @param numericOnly - If true, only generate numeric characters
  * @returns Random string
  */
-export function randomString(length: number): string {
-    const chars =
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+export function randomString(length: number, numericOnly = false): string {
+    const chars = numericOnly
+        ? '0123456789'
+        : 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let result = '';
     for (let i = 0; i < length; i++) {
         result += chars.charAt(Math.floor(Math.random() * chars.length));

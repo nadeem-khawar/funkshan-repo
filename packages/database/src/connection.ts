@@ -54,15 +54,13 @@ export async function connect(config?: ConnectionConfig): Promise<void> {
 
     try {
         // Create Prisma Client instance
+        // In Prisma 7, datasourceUrl is set via environment variable or prisma.config.ts
+        if (datasourceUrl) {
+            process.env.DATABASE_URL = datasourceUrl;
+        }
+
         prisma = new PrismaClient({
             ...getPrismaConfig(isProduction, logging),
-            ...(datasourceUrl && {
-                datasources: {
-                    db: {
-                        url: datasourceUrl,
-                    },
-                },
-            }),
         });
 
         // Test the connection

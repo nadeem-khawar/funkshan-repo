@@ -14,15 +14,23 @@ async function authenticationPlugin(
     fastify: FastifyInstance,
     options: FastifyPluginOptions
 ) {
-    // Register JWT plugin
+    const jwtSecret =
+        process.env.JWT_ACCESS_SECRET ||
+        'default-access-secret-change-in-production';
+
+    // Debug logging
+    fastify.log.info(
+        `JWT Plugin initialized with secret length: ${jwtSecret.length}`
+    );
+
+    // Register JWT plugin - must use the same secret as token generation
     await fastify.register(jwt, {
-        secret:
-            process.env.JWT_SECRET || 'your-secret-key-change-in-production',
+        secret: jwtSecret,
         sign: {
-            expiresIn: '24h',
+            expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
         },
         verify: {
-            maxAge: '24h',
+            maxAge: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
         },
     });
 
@@ -33,7 +41,17 @@ async function authenticationPlugin(
             try {
                 await request.jwtVerify();
             } catch (err) {
-                reply.send(err);
+                // Return properly formatted error response
+                reply.code(401).send({
+                    success: false,
+                    error: {
+                        code: 'UNAUTHORIZED',
+                        message:
+                            err instanceof Error
+                                ? err.message
+                                : 'Authentication required',
+                    },
+                });
             }
         }
     );
