@@ -1,7 +1,12 @@
+import 'dotenv/config';
 import { getRabbitMQConnection } from '@funkshan/messaging';
+import {
+    connect as connectDatabase,
+    disconnect as disconnectDatabase,
+} from '@funkshan/database';
 import { logger } from './config/logger';
 import { config } from './config';
-import { ExampleConsumer } from './consumers';
+import { ExampleConsumer, EventPublishedConsumer } from './consumers';
 
 /**
  * Main worker application
@@ -17,6 +22,12 @@ class WorkerApplication {
     async start(): Promise<void> {
         try {
             logger.info('🚀 Starting Funkshan Worker...');
+
+            // Initialize Database connection
+            await connectDatabase({
+                logging: config.env === 'development',
+            });
+            logger.info('✓ Connected to Database');
 
             // Initialize RabbitMQ connection
             const connection = getRabbitMQConnection({
@@ -47,15 +58,19 @@ class WorkerApplication {
      * Add your custom consumers here
      */
     private async startConsumers(): Promise<void> {
-        // Example consumer - replace with your actual consumers
-        const exampleConsumer = new ExampleConsumer('example_queue', {
-            prefetch: 1,
-            retryAttempts: config.worker.retryAttempts,
-            retryDelay: config.worker.retryDelay,
-        });
+        // Event published consumer - processes events when published
+        const eventPublishedConsumer = new EventPublishedConsumer();
+        await eventPublishedConsumer.start();
+        this.consumers.push(eventPublishedConsumer);
 
-        await exampleConsumer.start();
-        this.consumers.push(exampleConsumer);
+        // Example consumer - kept for reference
+        // const exampleConsumer = new ExampleConsumer('example_queue', {
+        //     prefetch: 1,
+        //     retryAttempts: config.worker.retryAttempts,
+        //     retryDelay: config.worker.retryDelay,
+        // });
+        // await exampleConsumer.start();
+        // this.consumers.push(exampleConsumer);
 
         // Add more consumers as needed:
         // const emailConsumer = new EmailConsumer('email_queue');
@@ -123,6 +138,11 @@ class WorkerApplication {
             const connection = getRabbitMQConnection();
             await connection.close();
             logger.info('✓ RabbitMQ connection closed');
+
+            // Close Database connection
+            logger.info('Closing Database connection...');
+            await disconnectDatabase();
+            logger.info('✓ Database connection closed');
 
             logger.info('✓ Worker shutdown complete');
             process.exit(0);

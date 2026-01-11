@@ -3,7 +3,8 @@
  * Handles event-related business logic
  */
 
-import { PrismaClient, Prisma, InviteStatus } from '@prisma/client';
+import type { PrismaClient, Prisma } from '@funkshan/database';
+import { InviteStatus } from '@funkshan/database';
 import type {
     CreateEventRequest,
     EventWithGuestsResponse,
@@ -15,9 +16,53 @@ import type {
     CreateCheckinAgent,
 } from '@funkshan/api-contracts';
 import { randomString } from '@funkshan/utils';
+import { JobPublisher, QUEUES, EventPublishedJob } from '@funkshan/messaging';
 
 export class EventService {
-    constructor(private prisma: PrismaClient) {}
+    private publisher: JobPublisher;
+
+    constructor(
+        private prisma: PrismaClient,
+        publisher?: JobPublisher
+    ) {
+        this.publisher = publisher || new JobPublisher();
+    }
+
+    /**
+     * Publish event.published message to RabbitMQ
+     */
+    private async publishEventCreated(event: {
+        id: string;
+        userId: string;
+        name: string;
+        dateTime: Date;
+        guestCount: number;
+    }): Promise<void> {
+        try {
+            const message: EventPublishedJob = {
+                type: 'event.published',
+                eventId: event.id,
+                userId: event.userId,
+                eventName: event.name,
+                eventDateTime: event.dateTime.toISOString(),
+                guestCount: event.guestCount,
+                timestamp: Date.now(),
+            };
+
+            await this.publisher.publish(QUEUES.EVENT_PUBLISHED, message, {
+                persistent: true,
+                priority: 5,
+            });
+
+            console.log(
+                `Published event.published message for event ${event.id}`
+            );
+        } catch (error) {
+            console.error('Failed to publish event message:', error);
+            // Don't throw - we don't want to fail the event creation if messaging fails
+            // The event is already created in DB, messaging should be handled separately
+        }
+    }
 
     /**
      * Create a new event with guests and checkin agents
@@ -63,6 +108,7 @@ export class EventService {
                 dressCode: eventFields.dressCode ?? null,
                 giftSuggestions: eventFields.giftSuggestions ?? null,
                 isDraft: eventFields.isDraft,
+                publishedAt: eventFields.isDraft ? null : new Date(),
                 guests: {
                     create: guests.map((guest: CreateGuest) => ({
                         name: guest.name,
@@ -83,6 +129,17 @@ export class EventService {
                 checkinAgents: true,
             },
         });
+
+        // If event is not a draft, publish message to RabbitMQ
+        if (!eventFields.isDraft) {
+            await this.publishEventCreated({
+                id: event.id,
+                userId: event.userId,
+                name: event.name,
+                dateTime: event.dateTime,
+                guestCount: event.guests.length,
+            });
+        }
 
         // Transform to response format
         return this.transformEventToResponse(event);

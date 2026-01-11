@@ -8,6 +8,18 @@ export interface BaseJob {
 }
 
 /**
+ * Event published job - sent when an event is published (isDraft = false)
+ */
+export interface EventPublishedJob extends BaseJob {
+    type: 'event.published';
+    eventId: string;
+    userId: string;
+    eventName: string;
+    eventDateTime: string;
+    guestCount: number;
+}
+
+/**
  * RabbitMQ connection configuration
  */
 export interface RabbitMQConfig {

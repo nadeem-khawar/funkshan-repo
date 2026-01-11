@@ -3,7 +3,7 @@
  * Handles user authentication, token generation, and related operations
  */
 
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@funkshan/database';
 import { UserRepository } from '@funkshan/database';
 import {
     verifyPassword,

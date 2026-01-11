@@ -1,0 +1,43 @@
+<h1>You're Invited! 🎉</h1>
+
+<p>Hi {{guestName}},</p>
+
+<p>You're invited to <strong>{{eventName}}</strong> by {{hostName}}!</p>
+
+<div class='info-box'>
+    <p><strong>📅 Date & Time:</strong> {{eventDateTime}}</p>
+    <p><strong>📍 Location:</strong> {{venueAddress}}</p>
+    <p><strong>🌍 Timezone:</strong> {{venueTimezone}}</p>
+    {{#if dressCode}}
+        <p><strong>👔 Dress Code:</strong> {{dressCode}}</p>
+    {{/if}}
+</div>
+
+{{#if details}}
+    <p>{{details}}</p>
+{{/if}}
+
+<div style='text-align: center; margin: 30px 0;'>
+    <a href='{{acceptUrl}}' class='button'>✓ I'll be there!</a>
+    <a href='{{declineUrl}}' class='button button-secondary'>✗ Can't make it</a>
+</div>
+
+<p style='text-align: center;'>
+    <a href='{{rsvpUrl}}' style='color: #6366f1; text-decoration: none;'>View
+        event details</a>
+</p>
+
+{{#if entryCode}}
+    <div class='info-box' style='text-align: center;'>
+        <p><strong>🎫 Entry Code:</strong></p>
+        <p
+            style='font-size: 24px; font-weight: bold; letter-spacing: 2px;'
+        >{{entryCode}}</p>
+        <p style='font-size: 12px; color: #666;'>Please present this code at the
+            entrance</p>
+    </div>
+{{/if}}
+
+<p>Looking forward to seeing you there!</p>
+
+<p>Best regards,<br />{{hostName}}</p>

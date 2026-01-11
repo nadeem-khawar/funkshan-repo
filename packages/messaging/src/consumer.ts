@@ -58,34 +58,48 @@ export abstract class Consumer<T extends BaseJob = BaseJob> {
             const channel = this.connection.getChannel();
             const exchange = this.connection.getExchange();
 
-            // Assert the main queue
-            const queueArgs: Record<string, any> = {
+            // Assert the main queue with proper options structure
+            const queueOptions: any = {
                 durable: this.options.durable,
                 autoDelete: this.options.autoDelete,
                 exclusive: this.options.exclusive,
+                arguments: {},
             };
 
             // Add dead letter exchange if configured
             if (this.options.deadLetterExchange) {
-                queueArgs['x-dead-letter-exchange'] =
+                queueOptions.arguments['x-dead-letter-exchange'] =
                     this.options.deadLetterExchange;
-                queueArgs['x-dead-letter-routing-key'] =
+                queueOptions.arguments['x-dead-letter-routing-key'] =
                     this.options.deadLetterRoutingKey;
             }
 
             if (this.options.messageTtl) {
-                queueArgs['x-message-ttl'] = this.options.messageTtl;
+                console.log(
+                    `[Consumer] Adding messageTtl: ${this.options.messageTtl}`
+                );
+                queueOptions.arguments['x-message-ttl'] =
+                    this.options.messageTtl;
+            } else {
+                console.log(
+                    `[Consumer] NOT adding messageTtl, value is: ${this.options.messageTtl}`
+                );
             }
 
             if (this.options.maxLength) {
-                queueArgs['x-max-length'] = this.options.maxLength;
+                queueOptions.arguments['x-max-length'] = this.options.maxLength;
             }
 
             if (this.options.maxPriority) {
-                queueArgs['x-max-priority'] = this.options.maxPriority;
+                queueOptions.arguments['x-max-priority'] =
+                    this.options.maxPriority;
             }
 
-            await channel.assertQueue(this.options.queueName, queueArgs);
+            console.log(
+                `[Consumer] About to assertQueue with options:`,
+                JSON.stringify(queueOptions, null, 2)
+            );
+            await channel.assertQueue(this.options.queueName, queueOptions);
 
             // Bind queue to exchange
             await channel.bindQueue(

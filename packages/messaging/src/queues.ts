@@ -3,7 +3,10 @@
  * Add your application-specific queue names here
  */
 export const QUEUES = {
-    // Example queues - customize based on your needs
+    // Event queues
+    EVENT_PUBLISHED: 'event.published',
+
+    // Notification queues
     EMAIL: 'email_queue',
     PUSH_NOTIFICATION: 'push_notification_queue',
 } as const;

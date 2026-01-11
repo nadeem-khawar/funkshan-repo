@@ -1,7 +1,7 @@
 /**
  * Fastify type extensions
  */
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@funkshan/database';
 
 declare module 'fastify' {
     interface FastifyInstance {

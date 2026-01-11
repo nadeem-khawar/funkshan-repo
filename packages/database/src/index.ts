@@ -13,7 +13,14 @@ export type {
     User,
     Tenant,
     UserDevice,
+    Event,
+    Guest,
 } from '@prisma/client';
 
 // Re-export Prisma enums
-export { UserRole } from '@prisma/client';
+export {
+    UserRole,
+    InviteStatus,
+    InviteType,
+    EntryMechanism,
+} from '@prisma/client';

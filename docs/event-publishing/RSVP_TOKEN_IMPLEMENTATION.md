@@ -52,15 +52,15 @@ model Guest {
 
 ### Phase 2: Token Generation Utility
 
-- [ ] Create `packages/utils/src/rsvp-token.ts`
-- [ ] Add `generateRsvpToken()` function
-- [ ] Add `calculateTokenExpiration(days = 30)` function
-- [ ] Export from utils package
+- [x] Create `packages/utils/src/rsvp-token.ts`
+- [x] Add `generateRsvpToken()` function
+- [x] Add `calculateTokenExpiration(days = 30)` function
+- [x] Export from utils package
 
 ### Phase 3: Worker Integration
 
-- [ ] Update `sendInvitation()` in worker to generate tokens
-- [ ] Store token in database before sending email
+- [x] Update `sendInvitation()` in worker to generate tokens
+- [x] Store token in database before sending email
 - [ ] Include RSVP URLs in email template
 
 ### Phase 4: API Endpoints

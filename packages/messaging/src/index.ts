@@ -15,6 +15,7 @@ export { Consumer } from './consumer';
 // Types
 export type {
     BaseJob,
+    EventPublishedJob,
     RabbitMQConfig,
     QueueOptions,
     ConsumerOptions,

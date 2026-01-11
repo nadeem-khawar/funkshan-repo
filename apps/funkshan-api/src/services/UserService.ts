@@ -1,7 +1,7 @@
 /**
  * User Service - Business logic for user operations
  */
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient, User } from '@funkshan/database';
 import { UserRepository } from '@funkshan/database';
 import type { CreateUserRequest } from '@funkshan/api-contracts';
 import { hashPassword } from '@funkshan/utils';
@@ -16,7 +16,7 @@ export class UserService {
     /**
      * Register a new user
      */
-    async registerUser(userData: CreateUserRequest) {
+    async registerUser(userData: CreateUserRequest): Promise<User> {
         // Hash the password
         const hashedPassword = await hashPassword(userData.password);
 
@@ -42,14 +42,14 @@ export class UserService {
     /**
      * Get user by ID
      */
-    async getUserById(id: string) {
+    async getUserById(id: string): Promise<User | null> {
         return this.userRepository.findById(id);
     }
 
     /**
      * Get user by email
      */
-    async getUserByEmail(email: string) {
+    async getUserByEmail(email: string): Promise<User | null> {
         return this.userRepository.findByEmail(email);
     }
 }

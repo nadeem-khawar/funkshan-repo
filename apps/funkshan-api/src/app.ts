@@ -11,6 +11,7 @@ export async function createServer(fastify: FastifyInstance) {
     // Register core plugins in order
     await fastify.register(plugins.config);
     await fastify.register(plugins.database);
+    await fastify.register(plugins.messaging);
     await fastify.register(plugins.security);
     await fastify.register(plugins.rateLimiting);
     await fastify.register(plugins.documentation);

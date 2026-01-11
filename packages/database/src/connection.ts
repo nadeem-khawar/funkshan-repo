@@ -2,6 +2,8 @@
  * Database connection utilities using Prisma
  */
 import { Prisma, PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 
 export interface ConnectionConfig {
     isProduction?: boolean;
@@ -15,6 +17,7 @@ export interface HealthCheckResult {
 }
 
 let prisma: PrismaClient | null = null;
+let pool: Pool | null = null;
 
 /**
  * Get Prisma client configuration based on environment
@@ -53,13 +56,22 @@ export async function connect(config?: ConnectionConfig): Promise<void> {
     } = config || {};
 
     try {
-        // Create Prisma Client instance
-        // In Prisma 7, datasourceUrl is set via environment variable or prisma.config.ts
-        if (datasourceUrl) {
-            process.env.DATABASE_URL = datasourceUrl;
+        // Get database URL from config or environment
+        const databaseUrl = datasourceUrl || process.env.DATABASE_URL;
+
+        if (!databaseUrl) {
+            throw new Error('DATABASE_URL is required');
         }
 
+        // Create PostgreSQL connection pool for the adapter
+        pool = new Pool({ connectionString: databaseUrl });
+
+        // Create Prisma adapter using the pool
+        const adapter = new PrismaPg(pool);
+
+        // Create Prisma Client instance with the adapter
         prisma = new PrismaClient({
+            adapter,
             ...getPrismaConfig(isProduction, logging),
         });
 
@@ -80,8 +92,12 @@ export async function disconnect(): Promise<void> {
         if (prisma) {
             await prisma.$disconnect();
             prisma = null;
-            console.log('✓ Database disconnected successfully');
         }
+        if (pool) {
+            await pool.end();
+            pool = null;
+        }
+        console.log('✓ Database disconnected successfully');
     } catch (error) {
         console.error('✗ Database disconnection failed:', error);
         throw error;

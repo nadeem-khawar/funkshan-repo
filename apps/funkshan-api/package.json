@@ -35,6 +35,7 @@
         "@fastify/throttle": "^3.0.2",
         "@funkshan/api-contracts": "workspace:*",
         "@funkshan/database": "workspace:*",
+        "@funkshan/messaging": "workspace:*",
         "@funkshan/utils": "workspace:*",
         "fastify": "^5.6.1",
         "fastify-plugin": "^5.1.0",

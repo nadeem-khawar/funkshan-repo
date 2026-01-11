@@ -1,0 +1,30 @@
+<h1>Event Details Updated 📝</h1>
+
+<p>Hi {{guestName}},</p>
+
+<p>{{hostName}} has updated the details for <strong>{{eventName}}</strong>.</p>
+
+<div class='info-box'>
+    <p><strong>What changed:</strong></p>
+    <ul>
+        {{#each changedFields}}
+            <li>{{this}}</li>
+        {{/each}}
+    </ul>
+</div>
+
+{{#if newDateTime}}
+    <p><strong>New Date & Time:</strong> {{newDateTime}}</p>
+{{/if}}
+
+{{#if newVenueAddress}}
+    <p><strong>New Location:</strong> {{newVenueAddress}}</p>
+{{/if}}
+
+<div style='text-align: center; margin: 30px 0;'>
+    <a href='{{rsvpUrl}}' class='button'>View Updated Details</a>
+</div>
+
+<p>If you can no longer attend, please update your RSVP.</p>
+
+<p>Best regards,<br />{{hostName}}</p>
