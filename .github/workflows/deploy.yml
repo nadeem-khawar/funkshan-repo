@@ -40,7 +40,7 @@ jobs:
               run: pnpm install --frozen-lockfile
 
             - name: Generate Prisma Client
-              run: pnpm --filter @funkshan/database prisma generate
+              run: cd packages/database && pnpm prisma generate
 
             - name: Build packages
               run: |
@@ -81,7 +81,7 @@ jobs:
                     pnpm install --frozen-lockfile --prod=false
 
                     # Generate Prisma Client
-                    pnpm --filter @funkshan/database prisma generate
+                    cd packages/database && pnpm prisma generate && cd ../..
 
                     # Build packages and apps
                     pnpm --filter @funkshan/shared-types build
