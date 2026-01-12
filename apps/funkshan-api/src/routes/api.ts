@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import authRoutes from './auth';
 import eventRoutes from './events';
+import storageRoutes from './storage';
 
 export default async function apiRoutes(
     fastify: FastifyInstance,
@@ -11,6 +12,9 @@ export default async function apiRoutes(
 
     // Register event routes
     await fastify.register(eventRoutes, { prefix: '/events' });
+
+    // Register storage routes
+    await fastify.register(storageRoutes, { prefix: '/storage' });
 
     // Example GET endpoint
     fastify.get('/', {

@@ -1,9 +1,8 @@
 /**
  * Login route
  */
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { AuthController } from '../../controllers/AuthController';
-import { AuthService } from '../../services/AuthService';
 import { createFastifySchema } from '../../utils/schema';
 import {
     LoginRequestSchema,
@@ -11,10 +10,15 @@ import {
     LoginErrorResponseSchema,
 } from '@funkshan/api-contracts';
 
-export default async function loginRoute(fastify: FastifyInstance) {
-    // Initialize service and controller
-    const authService = new AuthService(fastify.prisma);
-    const authController = new AuthController(authService);
+interface RouteOptions extends FastifyPluginOptions {
+    authController: AuthController;
+}
+
+export default async function loginRoute(
+    fastify: FastifyInstance,
+    options: RouteOptions
+) {
+    const { authController } = options;
 
     // Create schema from Zod schemas - single source of truth
     const schema = createFastifySchema({

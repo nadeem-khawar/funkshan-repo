@@ -1,9 +1,8 @@
 /**
  * List events route - Get filtered and paginated event lists
  */
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { EventController } from '../../controllers/EventController';
-import { EventService } from '../../services/EventService';
 import { createFastifySchema } from '../../utils/schema';
 import {
     ListEventsQuerySchema,
@@ -11,10 +10,15 @@ import {
     ListEventsErrorResponseSchema,
 } from '@funkshan/api-contracts';
 
-export default async function listEventsRoute(fastify: FastifyInstance) {
-    // Initialize service and controller
-    const eventService = new EventService(fastify.prisma);
-    const eventController = new EventController(eventService);
+interface RouteOptions extends FastifyPluginOptions {
+    eventController: EventController;
+}
+
+export default async function listEventsRoute(
+    fastify: FastifyInstance,
+    options: RouteOptions
+) {
+    const { eventController } = options;
 
     // Create schema
     const schema = createFastifySchema({
