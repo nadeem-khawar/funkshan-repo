@@ -1,105 +1,105 @@
 name: Deploy to Hetzner
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+    push:
+        branches: [main]
+    workflow_dispatch:
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    deploy:
+        runs-on: ubuntu-latest
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 9
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
 
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+            - name: Install pnpm
+              uses: pnpm/action-setup@v2
+              with:
+                  version: 9
 
-      - name: Setup pnpm cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
+            - name: Get pnpm store directory
+              shell: bash
+              run: |
+                  echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+            - name: Setup pnpm cache
+              uses: actions/cache@v3
+              with:
+                  path: ${{ env.STORE_PATH }}
+                  key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+                  restore-keys: |
+                      ${{ runner.os }}-pnpm-store-
 
-      - name: Build packages
-        run: |
-          pnpm --filter @funkshan/shared-types build
-          pnpm --filter @funkshan/validation build
-          pnpm --filter @funkshan/utils build
-          pnpm --filter @funkshan/api-contracts build
-          pnpm --filter @funkshan/database build
-          pnpm --filter @funkshan/email build
-          pnpm --filter @funkshan/messaging build
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
 
-      - name: Run tests
-        run: pnpm test || true
+            - name: Build packages
+              run: |
+                  pnpm --filter @funkshan/shared-types build
+                  pnpm --filter @funkshan/validation build
+                  pnpm --filter @funkshan/utils build
+                  pnpm --filter @funkshan/api-contracts build
+                  pnpm --filter @funkshan/database build
+                  pnpm --filter @funkshan/email build
+                  pnpm --filter @funkshan/messaging build
 
-      - name: Build applications
-        run: |
-          pnpm --filter funkshan-api build
-          pnpm --filter funkshan-web build
-          pnpm --filter funkshan-worker build
+            - name: Run tests
+              run: pnpm test || true
 
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.HETZNER_HOST }} >> ~/.ssh/known_hosts
+            - name: Build applications
+              run: |
+                  pnpm --filter funkshan-api build
+                  pnpm --filter funkshan-web build
+                  pnpm --filter funkshan-worker build
 
-      - name: Deploy to server
-        run: |
-          ssh ${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }} << 'EOF'
-            cd ~/apps/funkshan-repo
-            
-            # Pull latest code
-            git fetch origin main
-            git reset --hard origin/main
-            
-            # Install dependencies
-            pnpm install --frozen-lockfile --prod=false
-            
-            # Build packages and apps
-            pnpm --filter @funkshan/shared-types build
-            pnpm --filter @funkshan/validation build
-            pnpm --filter @funkshan/utils build
-            pnpm --filter @funkshan/api-contracts build
-            pnpm --filter @funkshan/database build
-            pnpm --filter @funkshan/email build
-            pnpm --filter @funkshan/messaging build
-            pnpm --filter funkshan-api build
-            pnpm --filter funkshan-web build
-            pnpm --filter funkshan-worker build
-            
-            # Run database migrations
-            cd packages/database
-            pnpm prisma migrate deploy
-            cd ../..
-            
-            # Restart services with PM2
-            pm2 reload ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production
-            pm2 save
-          EOF
+            - name: Setup SSH
+              run: |
+                  mkdir -p ~/.ssh
+                  echo "${{ secrets.HETZNER_SSH_KEY }}" > ~/.ssh/id_rsa
+                  chmod 600 ~/.ssh/id_rsa
+                  ssh-keyscan -H ${{ secrets.HETZNER_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Health check
-        run: |
-          sleep 10
-          curl -f http://37.27.246.219:8080/health || echo "Health check failed, but deployment completed"
+            - name: Deploy to server
+              run: |
+                  ssh ${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_HOST }} << 'EOF'
+                    cd ~/apps/funkshan-repo
+
+                    # Pull latest code
+                    git fetch origin main
+                    git reset --hard origin/main
+
+                    # Install dependencies
+                    pnpm install --frozen-lockfile --prod=false
+
+                    # Build packages and apps
+                    pnpm --filter @funkshan/shared-types build
+                    pnpm --filter @funkshan/validation build
+                    pnpm --filter @funkshan/utils build
+                    pnpm --filter @funkshan/api-contracts build
+                    pnpm --filter @funkshan/database build
+                    pnpm --filter @funkshan/email build
+                    pnpm --filter @funkshan/messaging build
+                    pnpm --filter funkshan-api build
+                    pnpm --filter funkshan-web build
+                    pnpm --filter funkshan-worker build
+
+                    # Run database migrations
+                    cd packages/database
+                    pnpm prisma migrate deploy
+                    cd ../..
+
+                    # Restart services with PM2
+                    pm2 reload ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production
+                    pm2 save
+                  EOF
+
+            - name: Health check
+              run: |
+                  sleep 10
+                  curl -f http://37.27.246.219:8080/health || echo "Health check failed, but deployment completed"
