@@ -63,6 +63,11 @@ sudo apt-get install -y nodejs
 curl -fsSL https://get.pnpm.io/install.sh | sh -
 source ~/.bashrc
 
+# Add pnpm to PATH for non-interactive shells (required for GitHub Actions)
+echo 'export PNPM_HOME="/home/funkshan/.local/share/pnpm"' >> ~/.profile
+echo 'export PATH="$PNPM_HOME:$PATH"' >> ~/.profile
+source ~/.profile
+
 # Verify installations
 node --version
 pnpm --version
@@ -110,12 +115,14 @@ sudo rm /etc/nginx/sites-enabled/default
 Create nginx configuration at `/etc/nginx/sites-available/funkshan`:
 
 ```nginx
-# API Server
+# API Server - HTTPS
 server {
-    listen 80;
+    listen 443 ssl http2;
     server_name api.funkshan.com;
 
     client_max_body_size 10M;
+    proxy_read_timeout 300s;
+    proxy_connect_timeout 75s;
 
     location / {
         proxy_pass http://localhost:3000;
@@ -128,14 +135,28 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
     }
+
+    ssl_certificate /etc/letsencrypt/live/funkshan.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/funkshan.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 }
 
-# Web App
+# API Server - HTTP redirect
 server {
     listen 80;
+    server_name api.funkshan.com;
+    return 301 https://$host$request_uri;
+}
+
+# Web App - HTTPS
+server {
+    listen 443 ssl http2;
     server_name funkshan.com www.funkshan.com;
 
     client_max_body_size 10M;
+    proxy_read_timeout 300s;
+    proxy_connect_timeout 75s;
 
     location / {
         proxy_pass http://localhost:3001;
@@ -148,8 +169,22 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
     }
+
+    ssl_certificate /etc/letsencrypt/live/funkshan.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/funkshan.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+# Web App - HTTP redirect
+server {
+    listen 80;
+    server_name funkshan.com www.funkshan.com;
+    return 301 https://$host$request_uri;
 }
 ```
+
+**Note:** SSL certificate paths will be added by certbot in step 6.
 
 Enable site and restart nginx:
 
@@ -179,9 +214,14 @@ cd /home/funkshan
 mkdir -p apps/funkshan-repo
 cd apps/funkshan-repo
 
-# Initialize git repository
-git init
-git remote add origin git@github.com:nadeem-khawar/funkshan-repo.git
+# Clone repository (use SSH if you have deploy keys setup)
+git clone git@github.com:nadeem-khawar/funkshan-repo.git .
+
+# Or use HTTPS (requires GitHub token or public repo)
+# git clone https://github.com/nadeem-khawar/funkshan-repo.git .
+
+# Create logs directory
+mkdir -p logs
 ```
 
 ### 8. Setup Environment Variables
@@ -232,8 +272,7 @@ module.exports = {
         {
             name: 'funkshan-api',
             cwd: './apps/funkshan-api',
-            script: 'node',
-            args: '--loader ts-node/esm src/server.ts',
+            script: 'dist/server.js',
             instances: 2,
             exec_mode: 'cluster',
             env_production: {
@@ -264,8 +303,7 @@ module.exports = {
         {
             name: 'funkshan-worker',
             cwd: './apps/funkshan-worker',
-            script: 'node',
-            args: '--loader ts-node/esm src/index.ts',
+            script: 'dist/index.js',
             instances: 1,
             exec_mode: 'fork',
             env_production: {
@@ -279,6 +317,8 @@ module.exports = {
     ],
 };
 ```
+
+**Note:** This configuration runs the compiled JavaScript files from the `dist` folder, not TypeScript files directly.
 
 ## GitHub Actions Workflow
 
@@ -319,10 +359,26 @@ jobs:
             - name: Install pnpm
               uses: pnpm/action-setup@v2
               with:
-                  version: 8
+                  version: 9
+
+            - name: Get pnpm store directory
+              shell: bash
+              run: |
+                  echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+            - name: Setup pnpm cache
+              uses: actions/cache@v3
+              with:
+                  path: ${{ env.STORE_PATH }}
+                  key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+                  restore-keys: |
+                      ${{ runner.os }}-pnpm-store-
 
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
+
+            - name: Generate Prisma Client
+              run: cd packages/database && pnpm prisma generate
 
             - name: Build packages
               run: |
@@ -361,6 +417,9 @@ jobs:
 
                     # Install dependencies
                     pnpm install --frozen-lockfile --prod=false
+
+                    # Generate Prisma Client
+                    cd packages/database && pnpm prisma generate && cd ../..
 
                     # Build packages and apps
                     pnpm --filter @funkshan/shared-types build
@@ -574,12 +633,132 @@ df -h
 pm2 flush  # Clear old logs
 ```
 
+## Monitoring with Netdata (Optional)
+
+Netdata provides real-time performance monitoring with zero configuration.
+
+### Install Netdata
+
+```bash
+# Download and run installation script
+wget -O /tmp/netdata-kickstart.sh https://get.netdata.cloud/kickstart.sh && sh /tmp/netdata-kickstart.sh
+
+# Alternative: Install via package manager
+# sudo apt-get install -y software-properties-common
+# sudo add-apt-repository ppa:netdata/netdata -y
+# sudo apt-get update
+# sudo apt-get install -y netdata
+```
+
+### Configure to Listen on All Interfaces
+
+By default, Netdata only listens on localhost. Configure it to be accessible externally:
+
+```bash
+sudo nano /etc/netdata/netdata.conf
+```
+
+Find the `[web]` section and set:
+
+```ini
+[web]
+    bind to = 0.0.0.0
+```
+
+Save and restart:
+
+```bash
+sudo systemctl restart netdata
+sudo systemctl enable netdata
+```
+
+### Configure Firewall
+
+```bash
+# Allow access to Netdata dashboard
+sudo ufw allow 19999/tcp
+sudo ufw status
+```
+
+### Verify Netdata is Running
+
+```bash
+sudo systemctl status netdata
+sudo netstat -tlnp | grep 19999
+```
+
+### Access Dashboard
+
+Open in browser: `http://37.27.246.219:19999`
+
+### Features
+
+- **Real-time metrics**: CPU, RAM, disk, network
+- **Process monitoring**: Node.js, PM2 applications
+- **Service monitoring**: nginx, RabbitMQ
+- **Alerts**: Configure email/Slack notifications
+- **Zero configuration**: Works out of the box
+
+### Enable PM2 Plugin
+
+```bash
+# PM2 metrics are automatically detected
+# View in Netdata under "Applications" section
+```
+
+### Secure Netdata (Recommended)
+
+Create nginx reverse proxy for Netdata with SSL:
+
+```bash
+sudo nano /etc/nginx/sites-available/netdata
+```
+
+Add:
+
+```nginx
+server {
+    listen 80;
+    server_name monitor.funkshan.com;
+
+    location / {
+        proxy_pass http://localhost:19999;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+Enable and get SSL:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/netdata /etc/nginx/sites-enabled/
+sudo certbot --nginx -d monitor.funkshan.com
+sudo systemctl restart nginx
+```
+
+Access securely at: `https://monitor.funkshan.com`
+
+### Alternative: PM2 Plus
+
+For application-specific monitoring:
+
+```bash
+pm2 plus
+# Follow prompts to create free account
+# Provides error tracking, custom metrics, and alerts
+```
+
 ## Next Steps
 
-1. Review this document and provide feedback
-2. Setup server with required software
-3. Configure domains and DNS
-4. Create GitHub Actions workflow
-5. Setup deployment scripts
-6. Test deployment process
-7. Configure monitoring (optional: PM2 Plus, Sentry, etc.)
+1. ✅ Server setup complete (Ubuntu, Node.js, pnpm, PM2, RabbitMQ, nginx)
+2. ✅ SSL certificates configured for funkshan.com, www.funkshan.com, api.funkshan.com
+3. ✅ GitHub Actions workflow created for automated deployments
+4. ✅ Repository cloned and initial deployment successful
+5. ⏳ Configure environment variables in `.env.production`
+6. ⏳ Test all applications (web, API, worker)
+7. ⏳ Setup monitoring with Netdata
+8. ⏳ Configure database migrations
+9. ⏳ Setup error tracking (optional: Sentry)
+10. ⏳ Configure backups
