@@ -1,0 +1,218 @@
+#cloud-config
+# Hetzner CCX23 Server Setup for Funkshan Monorepo
+# Ubuntu 24.04 LTS
+# This cloud-init script automates the base server configuration
+# Use this when creating a new server in Hetzner Cloud Console
+
+# Update and upgrade packages
+package_update: true
+package_upgrade: true
+
+# Install required packages
+packages:
+    - git
+    - curl
+    - wget
+    - htop
+    - ufw
+    - build-essential
+    - certbot
+    - python3-certbot-nginx
+
+# Create funkshan user with sudo privileges
+users:
+    - name: funkshan
+      groups: [sudo]
+      shell: /bin/bash
+      sudo: ['ALL=(ALL) NOPASSWD:ALL']
+      ssh_authorized_keys:
+          # IMPORTANT: Replace with your actual GitHub Actions SSH public key
+          - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOdUrXEn0voC3KvGCwz+JPUeMAnVNWe5T58t+YIWFifb github-actions-funkshan
+
+# Configure firewall
+runcmd:
+    # ====== System Updates ======
+    - apt-get update
+    - apt-get upgrade -y
+    - apt-get autoremove -y
+
+    # ====== Configure Firewall ======
+    - ufw default deny incoming
+    - ufw default allow outgoing
+    - ufw allow 22/tcp # SSH
+    - ufw allow 80/tcp # HTTP
+    - ufw allow 443/tcp # HTTPS
+    - ufw --force enable
+
+    # ====== Install Node.js 20.x ======
+    - curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    - apt-get install -y nodejs
+
+    # ====== Install pnpm for funkshan user ======
+    - su - funkshan -c 'curl -fsSL https://get.pnpm.io/install.sh | sh -'
+    - su - funkshan -c 'echo "export PNPM_HOME=\"/home/funkshan/.local/share/pnpm\"" >> ~/.profile'
+    - su - funkshan -c 'echo "export PATH=\"\$PNPM_HOME:\$PATH\"" >> ~/.profile'
+    - su - funkshan -c 'echo "export PNPM_HOME=\"/home/funkshan/.local/share/pnpm\"" >> ~/.bashrc'
+    - su - funkshan -c 'echo "export PATH=\"\$PNPM_HOME:\$PATH\"" >> ~/.bashrc'
+
+    # ====== Install PM2 globally ======
+    - npm install -g pm2
+    - su - funkshan -c 'pm2 startup systemd -u funkshan --hp /home/funkshan'
+    - env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u funkshan --hp /home/funkshan
+
+    # ====== Install and Configure RabbitMQ ======
+    - apt-get install -y rabbitmq-server
+    - systemctl enable rabbitmq-server
+    - systemctl start rabbitmq-server
+    - sleep 5
+    # Note: You'll need to set up RabbitMQ user manually or via separate script
+    # rabbitmqctl add_user funkshan YOUR_PASSWORD
+    # rabbitmqctl set_user_tags funkshan administrator
+    # rabbitmqctl set_permissions -p / funkshan ".*" ".*" ".*"
+    # rabbitmqctl set_vm_memory_high_watermark 0.125
+    - rabbitmq-plugins enable rabbitmq_management
+
+    # ====== Install and Configure nginx ======
+    - apt-get install -y nginx
+    - systemctl enable nginx
+    - rm -f /etc/nginx/sites-enabled/default
+
+    # ====== System Optimizations ======
+    # Increase file descriptor limits
+    - echo "* soft nofile 65535" >> /etc/security/limits.conf
+    - echo "* hard nofile 65535" >> /etc/security/limits.conf
+
+    # ====== Create application directories ======
+    - su - funkshan -c 'mkdir -p ~/apps/funkshan-repo'
+    - su - funkshan -c 'mkdir -p ~/apps/funkshan-repo/logs'
+    - chown -R funkshan:funkshan /home/funkshan/apps
+
+    # ====== Setup SSH for funkshan user ======
+    - su - funkshan -c 'mkdir -p ~/.ssh'
+    - su - funkshan -c 'chmod 700 ~/.ssh'
+    - su - funkshan -c 'touch ~/.ssh/authorized_keys'
+    - su - funkshan -c 'chmod 600 ~/.ssh/authorized_keys'
+
+    # ====== Reboot to apply all changes ======
+    - echo "Base server setup complete. System will reboot in 10 seconds..."
+    - sleep 10
+
+# Optimize kernel parameters
+write_files:
+    - path: /etc/sysctl.d/99-funkshan.conf
+      content: |
+          # Increase system IP port limits
+          net.ipv4.ip_local_port_range = 10000 65535
+
+          # Increase socket buffer sizes
+          net.core.rmem_max = 16777216
+          net.core.wmem_max = 16777216
+          net.ipv4.tcp_rmem = 4096 87380 16777216
+          net.ipv4.tcp_wmem = 4096 65536 16777216
+
+          # Enable TCP fast open
+          net.ipv4.tcp_fastopen = 3
+
+          # Increase max connections
+          net.core.somaxconn = 4096
+          net.ipv4.tcp_max_syn_backlog = 4096
+
+          # Improve file handling
+          fs.file-max = 2097152
+
+          # Reduce swap usage
+          vm.swappiness = 10
+      owner: root:root
+      permissions: '0644'
+
+    - path: /etc/nginx/nginx.conf
+      content: |
+          user www-data;
+          worker_processes 4;  # Match CPU cores
+          pid /run/nginx.pid;
+          worker_rlimit_nofile 65535;
+
+          events {
+              worker_connections 4096;
+              use epoll;
+              multi_accept on;
+          }
+
+          http {
+              # Basic Settings
+              sendfile on;
+              tcp_nopush on;
+              tcp_nodelay on;
+              keepalive_timeout 65;
+              types_hash_max_size 2048;
+              server_tokens off;
+
+              # Buffer settings for 16 GB RAM
+              client_body_buffer_size 128k;
+              client_max_body_size 10M;
+              client_header_buffer_size 1k;
+              large_client_header_buffers 4 8k;
+              output_buffers 1 32k;
+              postpone_output 1460;
+
+              # Gzip Settings
+              gzip on;
+              gzip_vary on;
+              gzip_proxied any;
+              gzip_comp_level 6;
+              gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss application/rss+xml font/truetype font/opentype application/vnd.ms-fontobject image/svg+xml;
+              gzip_disable "msie6";
+
+              # Logging
+              access_log /var/log/nginx/access.log;
+              error_log /var/log/nginx/error.log;
+
+              # Include other configs
+              include /etc/nginx/mime.types;
+              default_type application/octet-stream;
+              include /etc/nginx/conf.d/*.conf;
+              include /etc/nginx/sites-enabled/*;
+          }
+      owner: root:root
+      permissions: '0644'
+
+# Set hostname
+hostname: funkshan-prod
+
+# Set timezone (adjust as needed)
+timezone: UTC
+
+# Final message
+final_message: |
+    ╔═══════════════════════════════════════════════════════════════╗
+    ║  Funkshan Server Setup Complete!                              ║
+    ╟───────────────────────────────────────────────────────────────╢
+    ║  Server: CCX23 (4 vCPU, 16 GB RAM, 160 GB SSD)                ║
+    ║  OS: Ubuntu 24.04 LTS                                         ║
+    ║  User: funkshan (sudo enabled)                                ║
+    ╟───────────────────────────────────────────────────────────────╢
+    ║  Installed:                                                   ║
+    ║    ✓ Node.js 20.x                                            ║
+    ║    ✓ pnpm                                                    ║
+    ║    ✓ PM2                                                     ║
+    ║    ✓ RabbitMQ                                                ║
+    ║    ✓ nginx                                                   ║
+    ║    ✓ UFW Firewall (ports 22, 80, 443)                       ║
+    ╟───────────────────────────────────────────────────────────────╢
+    ║  Next Steps:                                                  ║
+    ║    1. SSH as funkshan user                                    ║
+    ║    2. Configure RabbitMQ user and password                    ║
+    ║    3. Clone repository to ~/apps/funkshan-repo                ║
+    ║    4. Configure nginx sites                                   ║
+    ║    5. Setup SSL certificates with certbot                     ║
+    ║    6. Deploy application                                      ║
+    ╟───────────────────────────────────────────────────────────────╢
+    ║  View this log: /var/log/cloud-init-output.log              ║
+    ╚═══════════════════════════════════════════════════════════════╝
+
+# Reboot after setup
+power_state:
+    mode: reboot
+    message: Rebooting to complete server setup
+    timeout: 30
+    condition: True

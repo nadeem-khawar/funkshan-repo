@@ -15,9 +15,28 @@ This document outlines the deployment automation process for the Funkshan monore
 
 ## Server Requirements
 
+### Recommended Server Specs
+
+**Hetzner CCX23** (Dedicated CPU Cloud Server)
+
+- 4 dedicated vCPU cores
+- 16 GB RAM
+- 160 GB SSD
+- 20 TB traffic
+- ~€26/month
+
+**Resource Allocation:**
+
+- Next.js Web: 2 GB RAM, 1 CPU core
+- Fastify API: 1-2 GB RAM, 1-2 CPU cores
+- Worker: 1 GB RAM, 1 CPU core
+- RabbitMQ: 2 GB RAM, 0.5 CPU core
+- nginx: 100 MB RAM, 0.5 CPU core
+- System + Buffer: 8 GB RAM
+
 ### Software Stack
 
-- Ubuntu 22.04 LTS (or similar)
+- Ubuntu 24.04 LTS
 - Node.js 20.x LTS
 - pnpm 8.x
 - nginx
@@ -33,91 +52,86 @@ This document outlines the deployment automation process for the Funkshan monore
 - 5672 (RabbitMQ - internal only)
 - 15672 (RabbitMQ Management - optional)
 
-## One-Time Server Setup
+## Automated Server Setup (Recommended)
 
-### 1. Create Deployment User
+### Using Cloud-Init Script
 
-```bash
-# Create dedicated user for deployments
-sudo adduser --disabled-password --gecos "" funkshan
-sudo usermod -aG sudo funkshan
+Hetzner allows you to use cloud-init to automate server configuration (up to 32 KiB). This is the **recommended approach** as it:
 
-# Setup SSH key authentication
-sudo su - funkshan
-mkdir -p ~/.ssh
-chmod 700 ~/.ssh
+- ✅ Automates the entire base setup
+- ✅ Ensures consistency across deployments
+- ✅ Reduces setup time from ~1 hour to ~10 minutes
+- ✅ Eliminates manual errors
+- ✅ Is version controlled and repeatable
 
-# Add GitHub Actions SSH public key to authorized_keys
-echo "YOUR_PUBLIC_KEY" >> ~/.ssh/authorized_keys
-chmod 600 ~/.ssh/authorized_keys
-```
+**Steps:**
 
-### 2. Install Node.js and pnpm
+1. **Prepare the cloud-init script:**
+    - Open [`docs/cloud-init.yaml`](./cloud-init.yaml)
+    - Replace `YOUR_PUBLIC_KEY` with your GitHub Actions SSH public key
+    - Review and adjust settings as needed
 
-```bash
-# Install Node.js 20.x
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
+2. **Create server in Hetzner Cloud Console:**
+    - Choose **CCX23** (Dedicated CPU Cloud Server)
+    - Select **Ubuntu 24.04 LTS**
+    - In **Cloud config** section, paste the contents of `cloud-init.yaml`
+    - Add your personal SSH key for emergency access
+    - Click **Create & Buy now**
 
-# Install pnpm
-curl -fsSL https://get.pnpm.io/install.sh | sh -
-source ~/.bashrc
+3. **Wait for initialization:**
+    - Server will be created and cloud-init will run automatically
+    - Takes approximately 5-10 minutes
+    - Monitor progress: `ssh root@SERVER_IP 'tail -f /var/log/cloud-init-output.log'`
 
-# Add pnpm to PATH for non-interactive shells (required for GitHub Actions)
-echo 'export PNPM_HOME="/home/funkshan/.local/share/pnpm"' >> ~/.profile
-echo 'export PATH="$PNPM_HOME:$PATH"' >> ~/.profile
-source ~/.profile
+4. **Post-setup tasks:**
 
-# Verify installations
-node --version
-pnpm --version
-```
+    ```bash
+    # SSH as funkshan user
+    ssh funkshan@SERVER_IP
 
-### 3. Install PM2
+    # Configure RabbitMQ user
+    sudo rabbitmqctl add_user funkshan YOUR_SECURE_PASSWORD
+    sudo rabbitmqctl set_user_tags funkshan administrator
+    sudo rabbitmqctl set_permissions -p / funkshan ".*" ".*" ".*"
+    sudo rabbitmqctl set_vm_memory_high_watermark 0.125
 
-```bash
-sudo npm install -g pm2
+    # Verify installations
+    node --version
+    pnpm --version
+    pm2 --version
+    sudo rabbitmqctl status
+    sudo nginx -t
+    ```
 
-# Setup PM2 to start on boot
-pm2 startup
-sudo env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u funkshan --hp /home/funkshan
-```
+5. **Continue with application setup:**
+    - Continue to [Configure nginx Sites](#configure-nginx-sites)
+    - Then proceed to [Setup SSL with Let's Encrypt](#setup-ssl-with-lets-encrypt)
 
-### 4. Install RabbitMQ
+**What the cloud-init script does:**
 
-```bash
-# Install RabbitMQ
-sudo apt-get install -y rabbitmq-server
+- ✓ Creates `funkshan` user with sudo access
+- ✓ Installs Node.js 20.x, pnpm, PM2
+- ✓ Installs and configures RabbitMQ
+- ✓ Installs and optimizes nginx for CCX23
+- ✓ Configures UFW firewall
+- ✓ Applies kernel optimizations
+- ✓ Creates application directories
+- ✓ Sets up SSH keys
 
-# Enable and start RabbitMQ
-sudo systemctl enable rabbitmq-server
-sudo systemctl start rabbitmq-server
+## Application Setup
 
-# Create application user
-sudo rabbitmqctl add_user funkshan YOUR_SECURE_PASSWORD
-sudo rabbitmqctl set_user_tags funkshan administrator
-sudo rabbitmqctl set_permissions -p / funkshan ".*" ".*" ".*"
+After completing the automated server setup, proceed with these steps to deploy your application.
 
-# Optional: Enable management plugin
-sudo rabbitmq-plugins enable rabbitmq_management
-```
+### Configure nginx Sites
 
-### 5. Install and Configure nginx
+Create nginx site configuration at `/etc/nginx/sites-available/funkshan`:
 
-```bash
-# Install nginx
-sudo apt-get install -y nginx
-
-# Remove default site
-sudo rm /etc/nginx/sites-enabled/default
-```
-
-Create nginx configuration at `/etc/nginx/sites-available/funkshan`:
+    sudo nano /etc/nginx/sites-available/funkshan
 
 ```nginx
-# API Server - HTTPS
+# API Server - HTTP (temporary, certbot will add HTTPS)
 server {
-    listen 443 ssl http2;
+    listen 80;
     server_name api.funkshan.com;
 
     client_max_body_size 10M;
@@ -135,23 +149,11 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
     }
-
-    ssl_certificate /etc/letsencrypt/live/funkshan.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/funkshan.com/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 }
 
-# API Server - HTTP redirect
+# Web App - HTTP (temporary, certbot will add HTTPS)
 server {
     listen 80;
-    server_name api.funkshan.com;
-    return 301 https://$host$request_uri;
-}
-
-# Web App - HTTPS
-server {
-    listen 443 ssl http2;
     server_name funkshan.com www.funkshan.com;
 
     client_max_body_size 10M;
@@ -169,22 +171,8 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
     }
-
-    ssl_certificate /etc/letsencrypt/live/funkshan.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/funkshan.com/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-}
-
-# Web App - HTTP redirect
-server {
-    listen 80;
-    server_name funkshan.com www.funkshan.com;
-    return 301 https://$host$request_uri;
 }
 ```
-
-**Note:** SSL certificate paths will be added by certbot in step 6.
 
 Enable site and restart nginx:
 
@@ -194,39 +182,34 @@ sudo nginx -t
 sudo systemctl restart nginx
 ```
 
-### 6. Setup SSL with Let's Encrypt
+### Setup SSL with Let's Encrypt
 
 ```bash
-# Install certbot
-sudo apt-get install -y certbot python3-certbot-nginx
-
-# Obtain certificates
+# Obtain certificates (certbot already installed via cloud-init)
 sudo certbot --nginx -d funkshan.com -d www.funkshan.com -d api.funkshan.com
 
 # Auto-renewal is configured automatically
 ```
 
-### 7. Create Application Directory
+### Clone Application Repository
 
 ```bash
-# As funkshan user
-cd /home/funkshan
-mkdir -p apps/funkshan-repo
-cd apps/funkshan-repo
+# As funkshan user (application directory already created via cloud-init)
+cd ~/apps/funkshan-repo
 
 # Clone repository (use SSH if you have deploy keys setup)
 git clone git@github.com:nadeem-khawar/funkshan-repo.git .
 
 # Or use HTTPS (requires GitHub token or public repo)
 # git clone https://github.com/nadeem-khawar/funkshan-repo.git .
-
-# Create logs directory
-mkdir -p logs
 ```
 
-### 8. Setup Environment Variables
+### Setup Environment Variables
 
 Create `/home/funkshan/apps/funkshan-repo/.env.production`:
+
+cd ~/apps/funkshan-repo
+nano .env.production
 
 ```bash
 # Application
@@ -262,7 +245,7 @@ WEB_PORT=3001
 # Add any other environment variables your apps need
 ```
 
-### 9. Create PM2 Ecosystem File
+### Create PM2 Ecosystem File
 
 Create `/home/funkshan/apps/funkshan-repo/ecosystem.config.js`:
 
@@ -273,8 +256,9 @@ module.exports = {
             name: 'funkshan-api',
             cwd: './apps/funkshan-api',
             script: 'dist/server.js',
-            instances: 2,
-            exec_mode: 'cluster',
+            instances: 1,
+            exec_mode: 'fork',
+            max_memory_restart: '1G',
             env_production: {
                 NODE_ENV: 'production',
                 PORT: 3000,
@@ -283,6 +267,10 @@ module.exports = {
             out_file: '../../logs/api-out.log',
             merge_logs: true,
             time: true,
+            autorestart: true,
+            watch: false,
+            max_restarts: 10,
+            min_uptime: '10s',
         },
         {
             name: 'funkshan-web',
@@ -291,6 +279,7 @@ module.exports = {
             args: 'start -p 3001',
             instances: 1,
             exec_mode: 'fork',
+            max_memory_restart: '2G',
             env_production: {
                 NODE_ENV: 'production',
                 PORT: 3001,
@@ -299,6 +288,10 @@ module.exports = {
             out_file: '../../logs/web-out.log',
             merge_logs: true,
             time: true,
+            autorestart: true,
+            watch: false,
+            max_restarts: 10,
+            min_uptime: '10s',
         },
         {
             name: 'funkshan-worker',
@@ -306,6 +299,7 @@ module.exports = {
             script: 'dist/index.js',
             instances: 1,
             exec_mode: 'fork',
+            max_memory_restart: '1G',
             env_production: {
                 NODE_ENV: 'production',
             },
@@ -313,12 +307,16 @@ module.exports = {
             out_file: '../../logs/worker-out.log',
             merge_logs: true,
             time: true,
+            autorestart: true,
+            watch: false,
+            max_restarts: 10,
+            min_uptime: '10s',
         },
     ],
 };
 ```
 
-**Note:** This configuration runs the compiled JavaScript files from the `dist` folder, not TypeScript files directly.
+**Note:** This configuration is optimized for a CCX23 server (4 cores, 16 GB RAM). It runs the compiled JavaScript files from the `dist` folder and includes memory limits and restart policies to prevent crashes. To scale the API to 2 instances under high load, change `instances: 2` and `exec_mode: 'cluster'`.
 
 ## GitHub Actions Workflow
 
@@ -574,6 +572,58 @@ pnpm prisma migrate resolve --rolled-back MIGRATION_NAME
 - [ ] Database connection string secured
 - [ ] Regular security updates: `sudo apt update && sudo apt upgrade`
 
+## Performance Monitoring
+
+### Resource Usage Checks
+
+Regularly monitor resource usage to ensure optimal performance:
+
+```bash
+# Check CPU and memory usage
+htop
+
+# Check disk usage
+df -h
+
+# Check disk I/O
+iostat -x 1
+
+# Check network connections
+ss -s
+
+# Check PM2 resource usage
+pm2 monit
+
+# Check nginx status
+systemctl status nginx
+
+# Check RabbitMQ memory usage
+sudo rabbitmqctl status | grep memory
+```
+
+### Performance Baselines (CCX23)
+
+**Normal Load:**
+
+- CPU: 20-40% average
+- Memory: 8-10 GB used (50-60%)
+- Disk I/O: < 50 MB/s
+- Network: < 100 Mbps
+
+**High Load:**
+
+- CPU: 60-80% average
+- Memory: 12-14 GB used (75-85%)
+- Disk I/O: < 100 MB/s
+- Network: < 500 Mbps
+
+**Critical (Time to Scale):**
+
+- CPU: > 80% sustained
+- Memory: > 14 GB (> 85%)
+- Disk: > 140 GB used (> 85%)
+- API response times > 500ms
+
 ## Maintenance
 
 ### Update Dependencies
@@ -631,6 +681,51 @@ sudo rabbitmqctl status
 ```bash
 df -h
 pm2 flush  # Clear old logs
+
+# Clean old logs (keep last 7 days)
+find ~/apps/funkshan-repo/logs -name "*.log" -mtime +7 -delete
+
+# Clean pnpm cache
+pnpm store prune
+
+# Clean old Docker images (if using Docker)
+# docker system prune -a
+
+# Clean apt cache
+sudo apt-get clean
+sudo apt-get autoclean
+```
+
+### High memory usage
+
+```bash
+# Check what's using memory
+ps aux --sort=-%mem | head -n 10
+
+# Check PM2 memory usage
+pm2 list
+
+# Restart high memory processes
+pm2 restart funkshan-api
+pm2 restart funkshan-web
+
+# Check for memory leaks in logs
+pm2 logs --lines 100
+```
+
+### High CPU usage
+
+```bash
+# Check CPU usage by process
+top -o %CPU
+
+# Check Node.js processes
+ps aux | grep node
+
+# If API is overloaded, scale to 2 instances
+# Edit ecosystem.config.js:
+# instances: 2, exec_mode: 'cluster'
+pm2 reload ecosystem.config.js --env production
 ```
 
 ## Monitoring with Netdata (Optional)
