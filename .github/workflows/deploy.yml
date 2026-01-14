@@ -51,6 +51,7 @@ jobs:
                   pnpm --filter @funkshan/database build
                   pnpm --filter @funkshan/email build
                   pnpm --filter @funkshan/messaging build
+                  pnpm --filter @funkshan/storage build
 
             - name: Run tests
               run: pnpm test || true
@@ -91,6 +92,7 @@ jobs:
                     pnpm --filter @funkshan/database build
                     pnpm --filter @funkshan/email build
                     pnpm --filter @funkshan/messaging build
+                    pnpm --filter @funkshan/storage build
                     pnpm --filter funkshan-api build
                     pnpm --filter funkshan-web build
                     pnpm --filter funkshan-worker build
@@ -108,4 +110,4 @@ jobs:
             - name: Health check
               run: |
                   sleep 10
-                  curl -f http://37.27.246.219:8080/health || echo "Health check failed, but deployment completed"
+                  curl -f https://api.funkshan.com/health || echo "Health check failed, but deployment completed"
