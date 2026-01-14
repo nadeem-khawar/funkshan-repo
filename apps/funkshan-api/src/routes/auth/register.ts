@@ -1,19 +1,23 @@
 /**
  * Register user route
  */
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import { UserController } from '../../controllers/UserController';
-import { UserService } from '../../services/UserService';
 import { createFastifySchema } from '../../utils/schema';
 import {
     CreateUserRequestSchema,
     CreateUserResponseSchema,
 } from '@funkshan/api-contracts';
 
-export default async function registerRoute(fastify: FastifyInstance) {
-    // Initialize service and controller
-    const userService = new UserService(fastify.prisma);
-    const userController = new UserController(userService);
+interface RouteOptions extends FastifyPluginOptions {
+    userController: UserController;
+}
+
+export default async function registerRoute(
+    fastify: FastifyInstance,
+    options: RouteOptions
+) {
+    const { userController } = options;
 
     // Create schema from Zod schemas - single source of truth
     const schema = createFastifySchema({

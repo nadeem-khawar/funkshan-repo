@@ -4,8 +4,9 @@ module.exports = {
             name: 'funkshan-api',
             cwd: './apps/funkshan-api',
             script: 'dist/server.js',
-            instances: 2,
-            exec_mode: 'cluster',
+            instances: 1,
+            exec_mode: 'fork',
+            max_memory_restart: '1G',
             env_production: {
                 NODE_ENV: 'production',
                 PORT: 3000,
@@ -14,6 +15,10 @@ module.exports = {
             out_file: '../../logs/api-out.log',
             merge_logs: true,
             time: true,
+            autorestart: true,
+            watch: false,
+            max_restarts: 10,
+            min_uptime: '10s',
         },
         {
             name: 'funkshan-web',
@@ -22,6 +27,7 @@ module.exports = {
             args: 'start -p 3001',
             instances: 1,
             exec_mode: 'fork',
+            max_memory_restart: '2G',
             env_production: {
                 NODE_ENV: 'production',
                 PORT: 3001,
@@ -30,6 +36,10 @@ module.exports = {
             out_file: '../../logs/web-out.log',
             merge_logs: true,
             time: true,
+            autorestart: true,
+            watch: false,
+            max_restarts: 10,
+            min_uptime: '10s',
         },
         {
             name: 'funkshan-worker',
@@ -37,6 +47,7 @@ module.exports = {
             script: 'dist/index.js',
             instances: 1,
             exec_mode: 'fork',
+            max_memory_restart: '1G',
             env_production: {
                 NODE_ENV: 'production',
             },
@@ -44,6 +55,10 @@ module.exports = {
             out_file: '../../logs/worker-out.log',
             merge_logs: true,
             time: true,
+            autorestart: true,
+            watch: false,
+            max_restarts: 10,
+            min_uptime: '10s',
         },
     ],
 };
